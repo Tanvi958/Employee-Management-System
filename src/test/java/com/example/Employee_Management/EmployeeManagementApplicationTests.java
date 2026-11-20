@@ -3,6 +3,7 @@ package com.example.Employee_Management;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -19,6 +20,7 @@ class EmployeeManagementApplicationTests {
     private MockMvc mvc;
 
     @Test
+    @WithMockUser(roles = "VIEWER")
     void contextLoadsAndSeedsSampleData() throws Exception {
         mvc.perform(get("/api/v1/dashboard"))
                 .andExpect(status().isOk())

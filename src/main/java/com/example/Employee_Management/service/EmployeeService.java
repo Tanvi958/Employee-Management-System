@@ -3,8 +3,10 @@ package com.example.Employee_Management.service;
 import com.example.Employee_Management.dto.EmployeeRequest;
 import com.example.Employee_Management.dto.EmployeeResponse;
 import com.example.Employee_Management.dto.PageResponse;
+import com.example.Employee_Management.dto.AuditEntry;
 import com.example.Employee_Management.exception.ConflictException;
 import com.example.Employee_Management.exception.ResourceNotFoundException;
+import com.example.Employee_Management.model.AuditLog;
 import com.example.Employee_Management.model.Department;
 import com.example.Employee_Management.model.Employee;
 import com.example.Employee_Management.model.EmployeeStatus;
@@ -44,34 +46,56 @@ public class EmployeeService {
     private final EmployeeRepository employeeRepository;
     private final DepartmentRepository departmentRepository;
     private final RoleRepository roleRepository;
+    private final AuditService audit;
 
     public EmployeeService(EmployeeRepository employeeRepository,
                            DepartmentRepository departmentRepository,
-                           RoleRepository roleRepository) {
+                           RoleRepository roleRepository,
+                           AuditService audit) {
         this.employeeRepository = employeeRepository;
         this.departmentRepository = departmentRepository;
         this.roleRepository = roleRepository;
+        this.audit = audit;
     }
 
     public PageResponse<EmployeeResponse> search(String q, Long departmentId, Long roleId, EmployeeStatus status,
                                                  int page, int size, String sortBy, String direction) {
+        PageRequest pageable = PageRequest.of(Math.max(page, 0), Math.clamp(size, 1, MAX_PAGE_SIZE),
+                sort(sortBy, direction));
+        return PageResponse.from(employeeRepository.findAll(spec(q, departmentId, roleId, status), pageable)
+                .map(EmployeeResponse::from));
+    }
+
+    /** Every employee matching the filters (no paging), for CSV export. */
+    public List<EmployeeResponse> searchAll(String q, Long departmentId, Long roleId, EmployeeStatus status,
+                                            String sortBy, String direction) {
+        return employeeRepository.findAll(spec(q, departmentId, roleId, status), sort(sortBy, direction)).stream()
+                .map(EmployeeResponse::from).toList();
+    }
+
+    private static Specification<Employee> spec(String q, Long departmentId, Long roleId, EmployeeStatus status) {
         List<Specification<Employee>> filters = new ArrayList<>();
         filters.add(EmployeeSpecifications.matchesText(q));
         filters.add(EmployeeSpecifications.inDepartment(departmentId));
         filters.add(EmployeeSpecifications.hasRole(roleId));
         filters.add(EmployeeSpecifications.hasStatus(status));
-        Specification<Employee> spec = Specification.allOf(filters.stream().filter(Objects::nonNull).toList());
+        return Specification.allOf(filters.stream().filter(Objects::nonNull).toList());
+    }
 
+    private static Sort sort(String sortBy, String direction) {
         String property = SORTABLE.getOrDefault(sortBy, "id");
         Sort.Direction dir = "desc".equalsIgnoreCase(direction) ? Sort.Direction.DESC : Sort.Direction.ASC;
-        Sort sort = Sort.by(dir, property).and(Sort.by(Sort.Direction.ASC, "id"));
-        PageRequest pageable = PageRequest.of(Math.max(page, 0), Math.clamp(size, 1, MAX_PAGE_SIZE), sort);
-
-        return PageResponse.from(employeeRepository.findAll(spec, pageable).map(EmployeeResponse::from));
+        return Sort.by(dir, property).and(Sort.by(Sort.Direction.ASC, "id"));
     }
 
     public EmployeeResponse findById(Long id) {
         return EmployeeResponse.from(getOrThrow(id));
+    }
+
+    /** The audit trail of one employee, newest first. */
+    public List<AuditEntry> history(Long id) {
+        getOrThrow(id);
+        return audit.history(AuditLog.EntityType.EMPLOYEE, id);
     }
 
     @Transactional
@@ -82,7 +106,10 @@ public class EmployeeService {
         }
         Employee employee = new Employee();
         apply(employee, request, email);
-        return EmployeeResponse.from(employeeRepository.save(employee));
+        Employee saved = employeeRepository.save(employee);
+        audit.record(AuditLog.Action.CREATE, AuditLog.EntityType.EMPLOYEE, saved.getId(),
+                "Added " + EmployeeResponse.from(saved).fullName());
+        return EmployeeResponse.from(saved);
     }
 
     @Transactional
@@ -92,13 +119,38 @@ public class EmployeeService {
         if (employeeRepository.existsByEmailIdIgnoreCaseAndIdNot(email, id)) {
             throw new ConflictException("An employee with email " + email + " already exists");
         }
+        EmployeeResponse before = EmployeeResponse.from(employee);
         apply(employee, request, email);
-        return EmployeeResponse.from(employeeRepository.saveAndFlush(employee));
+        EmployeeResponse after = EmployeeResponse.from(employeeRepository.saveAndFlush(employee));
+
+        AuditService.Diff diff = new AuditService.Diff()
+                .field("first name", before.firstName(), after.firstName())
+                .field("last name", before.lastName(), after.lastName())
+                .field("email", before.emailId(), after.emailId())
+                .field("phone", before.phone(), after.phone())
+                .field("department", name(before.department()), name(after.department()))
+                .field("role", name(before.role()), name(after.role()))
+                .field("salary", before.salary(), after.salary())
+                .field("joining date", before.joiningDate(), after.joiningDate())
+                .field("status", before.status(), after.status());
+        if (!diff.isEmpty()) {
+            audit.record(AuditLog.Action.UPDATE, AuditLog.EntityType.EMPLOYEE, id, "Updated " + after.fullName(),
+                    diff.toString());
+        }
+        return after;
     }
 
     @Transactional
     public void delete(Long id) {
-        employeeRepository.delete(getOrThrow(id));
+        Employee employee = getOrThrow(id);
+        String name = EmployeeResponse.from(employee).fullName();
+        employeeRepository.delete(employee);
+        audit.record(AuditLog.Action.DELETE, AuditLog.EntityType.EMPLOYEE, id,
+                "Deleted " + name + " (" + employee.getEmailId() + ")");
+    }
+
+    private static String name(EmployeeResponse.Ref ref) {
+        return ref == null ? null : ref.name();
     }
 
     private Employee getOrThrow(Long id) {

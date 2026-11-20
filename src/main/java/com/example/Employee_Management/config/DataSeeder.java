@@ -80,6 +80,15 @@ public class DataSeeder implements ApplicationRunner {
                 {"Isha", "Malhotra", "isha.malhotra@example.com", "+91 98100 11010", "Design", "UI/UX Designer", "78000", "2025-01-06", EmployeeStatus.ACTIVE},
                 {"Dev", "Joshi", "dev.joshi@example.com", "+91 98100 11011", "Engineering", "Senior Software Engineer", "152000", "2021-05-17", EmployeeStatus.ACTIVE},
                 {"Kavya", "Reddy", "kavya.reddy@example.com", "+91 98100 11012", "Human Resources", "HR Executive", "62000", "2025-08-04", EmployeeStatus.ACTIVE},
+                // Recent hires: "-N" means N months before today, so the hiring chart always has data.
+                {"Nikhil", "Bansal", "nikhil.bansal@example.com", "+91 98100 11013", "Engineering", "Software Engineer", "86000", "-10", EmployeeStatus.ACTIVE},
+                {"Tara", "Menon", "tara.menon@example.com", "+91 98100 11014", "Design", "UI/UX Designer", "76000", "-8", EmployeeStatus.ACTIVE},
+                {"Siddharth", "Jain", "siddharth.jain@example.com", "+91 98100 11015", "Engineering", "Software Engineer", "89000", "-7", EmployeeStatus.ACTIVE},
+                {"Pooja", "Chawla", "pooja.chawla@example.com", "+91 98100 11016", "Finance", "Accountant", "66000", "-5", EmployeeStatus.ACTIVE},
+                {"Aditya", "Kulkarni", "aditya.kulkarni@example.com", "+91 98100 11017", "Engineering", "Senior Software Engineer", "138000", "-4", EmployeeStatus.ACTIVE},
+                {"Neha", "Saxena", "neha.saxena@example.com", "+91 98100 11018", "Human Resources", "HR Executive", "60000", "-2", EmployeeStatus.ON_LEAVE},
+                {"Rahul", "Pillai", "rahul.pillai@example.com", "+91 98100 11019", "Operations", "Operations Manager", "98000", "-1", EmployeeStatus.ACTIVE},
+                {"Simran", "Arora", "simran.arora@example.com", "+91 98100 11020", "Engineering", "Software Engineer", "84000", "0", EmployeeStatus.ACTIVE},
         };
         for (Object[] r : rows) {
             Employee e = new Employee();
@@ -90,7 +99,10 @@ public class DataSeeder implements ApplicationRunner {
             e.setDepartment(dept.get((String) r[4]));
             e.setRole(role.get((String) r[5]));
             e.setSalary(new BigDecimal((String) r[6]));
-            e.setJoiningDate(LocalDate.parse((String) r[7]));
+            String date = (String) r[7];
+            e.setJoiningDate(date.contains("-") && date.length() == 10
+                    ? LocalDate.parse(date)
+                    : LocalDate.now().minusMonths(Math.abs(Integer.parseInt(date))).withDayOfMonth(1).plusDays(4));
             e.setStatus((EmployeeStatus) r[8]);
             employeeRepository.save(e);
         }

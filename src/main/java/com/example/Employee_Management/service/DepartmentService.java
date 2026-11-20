@@ -3,6 +3,7 @@ package com.example.Employee_Management.service;
 import com.example.Employee_Management.dto.DepartmentDto;
 import com.example.Employee_Management.exception.ConflictException;
 import com.example.Employee_Management.exception.ResourceNotFoundException;
+import com.example.Employee_Management.model.AuditLog;
 import com.example.Employee_Management.model.Department;
 import com.example.Employee_Management.repository.DepartmentRepository;
 import com.example.Employee_Management.repository.EmployeeRepository;
@@ -20,10 +21,12 @@ public class DepartmentService {
 
     private final DepartmentRepository departmentRepository;
     private final EmployeeRepository employeeRepository;
+    private final AuditService audit;
 
-    public DepartmentService(DepartmentRepository departmentRepository, EmployeeRepository employeeRepository) {
+    public DepartmentService(DepartmentRepository departmentRepository, EmployeeRepository employeeRepository, AuditService audit) {
         this.departmentRepository = departmentRepository;
         this.employeeRepository = employeeRepository;
+        this.audit = audit;
     }
 
     public List<DepartmentDto.Response> findAll() {
@@ -48,6 +51,8 @@ public class DepartmentService {
             throw new ConflictException("Department '" + name + "' already exists");
         }
         Department saved = departmentRepository.save(new Department(name, blankToNull(request.description())));
+        audit.record(AuditLog.Action.CREATE, AuditLog.EntityType.DEPARTMENT, saved.getId(),
+                "Added department " + saved.getName());
         return toResponse(saved, 0);
     }
 
@@ -58,8 +63,14 @@ public class DepartmentService {
         if (departmentRepository.existsByNameIgnoreCaseAndIdNot(name, id)) {
             throw new ConflictException("Department '" + name + "' already exists");
         }
+        AuditService.Diff diff = new AuditService.Diff()
+                .field("name", d.getName(), name)
+                .field("description", d.getDescription(), blankToNull(request.description()));
         d.setName(name);
         d.setDescription(blankToNull(request.description()));
+        if (!diff.isEmpty()) {
+            audit.record(AuditLog.Action.UPDATE, AuditLog.EntityType.DEPARTMENT, id, "Updated department " + name, diff.toString());
+        }
         return toResponse(departmentRepository.save(d), employeeRepository.countByDepartmentId(id));
     }
 
@@ -73,6 +84,7 @@ public class DepartmentService {
                     + inUse + " employee(s) still belong to it");
         }
         departmentRepository.delete(d);
+        audit.record(AuditLog.Action.DELETE, AuditLog.EntityType.DEPARTMENT, id, "Deleted department " + d.getName());
     }
 
     private Department getOrThrow(Long id) {

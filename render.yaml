@@ -7,6 +7,9 @@ services:
     plan: free
     healthCheckPath: /actuator/health
     envVars:
+      # Signs login tokens. Render generates a random value once.
+      - key: JWT_SECRET
+        generateValue: true
       - key: DB_HOST
         fromDatabase: { name: employee-db, property: host }
       - key: DB_PORT

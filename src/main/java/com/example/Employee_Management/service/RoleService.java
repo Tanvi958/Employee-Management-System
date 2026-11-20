@@ -3,6 +3,7 @@ package com.example.Employee_Management.service;
 import com.example.Employee_Management.dto.RoleDto;
 import com.example.Employee_Management.exception.ConflictException;
 import com.example.Employee_Management.exception.ResourceNotFoundException;
+import com.example.Employee_Management.model.AuditLog;
 import com.example.Employee_Management.model.Role;
 import com.example.Employee_Management.repository.EmployeeRepository;
 import com.example.Employee_Management.repository.RoleRepository;
@@ -20,10 +21,12 @@ public class RoleService {
 
     private final RoleRepository roleRepository;
     private final EmployeeRepository employeeRepository;
+    private final AuditService audit;
 
-    public RoleService(RoleRepository roleRepository, EmployeeRepository employeeRepository) {
+    public RoleService(RoleRepository roleRepository, EmployeeRepository employeeRepository, AuditService audit) {
         this.roleRepository = roleRepository;
         this.employeeRepository = employeeRepository;
+        this.audit = audit;
     }
 
     public List<RoleDto.Response> findAll() {
@@ -48,6 +51,8 @@ public class RoleService {
             throw new ConflictException("Role '" + title + "' already exists");
         }
         Role saved = roleRepository.save(new Role(title, blankToNull(request.description())));
+        audit.record(AuditLog.Action.CREATE, AuditLog.EntityType.ROLE, saved.getId(),
+                "Added role " + saved.getTitle());
         return toResponse(saved, 0);
     }
 
@@ -58,8 +63,14 @@ public class RoleService {
         if (roleRepository.existsByTitleIgnoreCaseAndIdNot(title, id)) {
             throw new ConflictException("Role '" + title + "' already exists");
         }
+        AuditService.Diff diff = new AuditService.Diff()
+                .field("title", r.getTitle(), title)
+                .field("description", r.getDescription(), blankToNull(request.description()));
         r.setTitle(title);
         r.setDescription(blankToNull(request.description()));
+        if (!diff.isEmpty()) {
+            audit.record(AuditLog.Action.UPDATE, AuditLog.EntityType.ROLE, id, "Updated role " + title, diff.toString());
+        }
         return toResponse(roleRepository.save(r), employeeRepository.countByRoleId(id));
     }
 
@@ -73,6 +84,7 @@ public class RoleService {
                     + inUse + " employee(s) still hold it");
         }
         roleRepository.delete(r);
+        audit.record(AuditLog.Action.DELETE, AuditLog.EntityType.ROLE, id, "Deleted role " + r.getTitle());
     }
 
     private Role getOrThrow(Long id) {
