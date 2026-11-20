@@ -1,57 +1,64 @@
 package com.example.Employee_Management.controller;
 
-import com.example.Employee_Management.model.Employee;
-import com.example.Employee_Management.repository.EmployeeRepository;
-import com.example.Employee_Management.exception.ResourceNotFoundException;
+import com.example.Employee_Management.dto.EmployeeRequest;
+import com.example.Employee_Management.dto.EmployeeResponse;
+import com.example.Employee_Management.dto.PageResponse;
+import com.example.Employee_Management.model.EmployeeStatus;
 import com.example.Employee_Management.service.EmployeeService;
-import org.springframework.beans.factory.annotation.Autowired;
+import jakarta.validation.Valid;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
-import java.util.HashMap;
-import java.util.List;
+import java.net.URI;
 import java.util.Map;
 
 @RestController
 @RequestMapping("/api/v1/employees")
 public class EmployeeController {
 
-    @Autowired private EmployeeService employeeService;
+    private final EmployeeService employeeService;
 
-    // Get all employees
+    public EmployeeController(EmployeeService employeeService) {
+        this.employeeService = employeeService;
+    }
+
+    /** List employees, with optional search text, filters, paging and sorting. */
     @GetMapping
-    public List<Employee> getAllEmployees() {
-        return employeeService.findAll();
+    public PageResponse<EmployeeResponse> getEmployees(
+            @RequestParam(required = false) String q,
+            @RequestParam(required = false) Long departmentId,
+            @RequestParam(required = false) Long roleId,
+            @RequestParam(required = false) EmployeeStatus status,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(defaultValue = "id") String sort,
+            @RequestParam(defaultValue = "asc") String direction) {
+        return employeeService.search(q, departmentId, roleId, status, page, size, sort, direction);
     }
 
-    // Create employee
-    @PostMapping
-    public Employee createEmployee(@RequestBody Employee employee) {
-        return employeeService.save(employee);
-    }
-
-    // Get employee by id
     @GetMapping("/{id}")
-    public ResponseEntity<Employee> getEmployeeById(@PathVariable Long id) {
-        Employee employee = employeeService.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Employee not found with id: " + id));
-        return ResponseEntity.ok(employee);
+    public EmployeeResponse getEmployeeById(@PathVariable Long id) {
+        return employeeService.findById(id);
     }
 
-    // Update employee
+    @PostMapping
+    public ResponseEntity<EmployeeResponse> createEmployee(@Valid @RequestBody EmployeeRequest request) {
+        EmployeeResponse created = employeeService.create(request);
+        URI location = ServletUriComponentsBuilder.fromCurrentRequest()
+                .path("/{id}").buildAndExpand(created.id()).toUri();
+        return ResponseEntity.created(location).body(created);
+    }
+
     @PutMapping("/{id}")
-    public ResponseEntity<Employee> updateEmployee(@PathVariable Long id, @RequestBody Employee employeeDetails) {
-        // Calling the service method we created earlier
-        Employee updatedEmployee = employeeService.updateEmployee(id, employeeDetails);
-        return ResponseEntity.ok(updatedEmployee);
+    public EmployeeResponse updateEmployee(@PathVariable Long id, @Valid @RequestBody EmployeeRequest request) {
+        return employeeService.update(id, request);
     }
 
-    // Delete employee
     @DeleteMapping("/{id}")
     public ResponseEntity<Map<String, Boolean>> deleteEmployee(@PathVariable Long id) {
-        employeeService.deleteEmployee(id); // Calling the service
-        Map<String, Boolean> response = new HashMap<>();
-        response.put("deleted", Boolean.TRUE);
-        return ResponseEntity.ok(response);
+        employeeService.delete(id);
+        return ResponseEntity.status(HttpStatus.OK).body(Map.of("deleted", Boolean.TRUE));
     }
 }

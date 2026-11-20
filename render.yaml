@@ -1,0 +1,27 @@
+# One-click deploy on Render (https://render.com): New > Blueprint > pick this repository.
+# Creates the web service and a free PostgreSQL database, and wires the connection details together.
+services:
+  - type: web
+    name: employee-management-system
+    runtime: docker
+    plan: free
+    healthCheckPath: /actuator/health
+    envVars:
+      - key: DB_HOST
+        fromDatabase: { name: employee-db, property: host }
+      - key: DB_PORT
+        fromDatabase: { name: employee-db, property: port }
+      - key: DB_NAME
+        fromDatabase: { name: employee-db, property: database }
+      # Render passes this text as-is; Spring fills in the ${...} parts from the variables above.
+      - key: DB_URL
+        value: jdbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}
+      - key: DB_USERNAME
+        fromDatabase: { name: employee-db, property: user }
+      - key: DB_PASSWORD
+        fromDatabase: { name: employee-db, property: password }
+
+databases:
+  - name: employee-db
+    plan: free
+    databaseName: employee_db

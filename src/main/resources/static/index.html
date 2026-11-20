@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Employee Management System</title>
+  <meta name="description" content="Manage employees, departments and roles. Spring Boot REST API with a vanilla JavaScript dashboard.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%234f46e5'/%3E%3Ctext x='16' y='21' font-family='Arial' font-size='14' font-weight='700' fill='white' text-anchor='middle'%3EEM%3C/text%3E%3C/svg%3E">
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+<div class="layout">
+  <aside class="sidebar" id="sidebar">
+    <div class="brand">
+      <span class="brand-mark">EM</span>
+      <div>
+        <strong>EmployeeHub</strong>
+        <small>Management System</small>
+      </div>
+    </div>
+    <nav class="nav" aria-label="Main">
+      <a href="#/dashboard" data-route="dashboard">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 13h8V3H3zm0 8h8v-6H3zm10 0h8V11h-8zm0-18v6h8V3z"/></svg>
+        Dashboard
+      </a>
+      <a href="#/employees" data-route="employees">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 11c1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3 1.34 3 3 3m-8 0c1.66 0 3-1.34 3-3S9.66 5 8 5 5 6.34 5 8s1.34 3 3 3m0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5C15 14.17 10.33 13 8 13m8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5"/></svg>
+        Employees
+      </a>
+      <a href="#/departments" data-route="departments">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 7V3H2v18h20V7zM6 19H4v-2h2zm0-4H4v-2h2zm0-4H4V9h2zm0-4H4V5h2zm4 12H8v-2h2zm0-4H8v-2h2zm0-4H8V9h2zm0-4H8V5h2zm10 12h-8v-2h2v-2h-2v-2h2v-2h-2V9h8zm-2-8h-2v2h2zm0 4h-2v2h2z"/></svg>
+        Departments
+      </a>
+      <a href="#/roles" data-route="roles">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6h-4V4c0-1.11-.89-2-2-2h-4c-1.11 0-2 .89-2 2v2H4c-1.11 0-2 .89-2 2v11c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2m-6 0h-4V4h4z"/></svg>
+        Roles
+      </a>
+    </nav>
+    <div class="sidebar-foot">
+      <a href="swagger-ui.html" target="_blank" rel="noopener">API docs (Swagger) ↗</a>
+      <a href="https://github.com/Tanvi958/Employee-Management-System" target="_blank" rel="noopener">Source on GitHub ↗</a>
+    </div>
+  </aside>
+
+  <div class="main">
+    <header class="topbar">
+      <button class="icon-btn menu-btn" id="menuBtn" aria-label="Open menu" aria-controls="sidebar" aria-expanded="false">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 18h18v-2H3zm0-5h18v-2H3zm0-7v2h18V6z"/></svg>
+      </button>
+      <div>
+        <h1 id="pageTitle">Dashboard</h1>
+        <p id="pageSubtitle" class="muted">Overview of your organisation</p>
+      </div>
+      <div class="topbar-actions" id="topbarActions"></div>
+    </header>
+
+    <main id="view" class="view" tabindex="-1" aria-live="polite"></main>
+  </div>
+</div>
+
+<!-- Employee form -->
+<dialog id="employeeDialog" class="dialog">
+  <form id="employeeForm" method="dialog" novalidate>
+    <header class="dialog-head">
+      <h2 id="employeeDialogTitle">Add employee</h2>
+      <button type="button" class="icon-btn" data-close aria-label="Close">✕</button>
+    </header>
+    <div class="form-error" id="employeeFormError" hidden></div>
+    <div class="form-grid">
+      <label class="field">
+        <span>First name *</span>
+        <input name="firstName" required maxlength="60" autocomplete="off">
+        <small class="err" data-for="firstName"></small>
+      </label>
+      <label class="field">
+        <span>Last name</span>
+        <input name="lastName" maxlength="60" autocomplete="off">
+        <small class="err" data-for="lastName"></small>
+      </label>
+      <label class="field span-2">
+        <span>Email *</span>
+        <input name="emailId" type="email" required maxlength="120" autocomplete="off">
+        <small class="err" data-for="emailId"></small>
+      </label>
+      <label class="field">
+        <span>Phone</span>
+        <input name="phone" maxlength="20" placeholder="+91 98100 00000" autocomplete="off">
+        <small class="err" data-for="phone"></small>
+      </label>
+      <label class="field">
+        <span>Status</span>
+        <select name="status">
+          <option value="ACTIVE">Active</option>
+          <option value="ON_LEAVE">On leave</option>
+          <option value="INACTIVE">Inactive</option>
+        </select>
+        <small class="err" data-for="status"></small>
+      </label>
+      <label class="field">
+        <span>Department</span>
+        <select name="departmentId" data-options="departments"></select>
+        <small class="err" data-for="departmentId"></small>
+      </label>
+      <label class="field">
+        <span>Role</span>
+        <select name="roleId" data-options="roles"></select>
+        <small class="err" data-for="roleId"></small>
+      </label>
+      <label class="field">
+        <span>Monthly salary (₹)</span>
+        <input name="salary" type="number" min="0" step="0.01" inputmode="decimal">
+        <small class="err" data-for="salary"></small>
+      </label>
+      <label class="field">
+        <span>Joining date</span>
+        <input name="joiningDate" type="date">
+        <small class="err" data-for="joiningDate"></small>
+      </label>
+    </div>
+    <footer class="dialog-foot">
+      <button type="button" class="btn ghost" data-close>Cancel</button>
+      <button type="submit" class="btn primary" id="employeeSubmit">Save employee</button>
+    </footer>
+  </form>
+</dialog>
+
+<!-- Department / role form (shared) -->
+<dialog id="catalogDialog" class="dialog small">
+  <form id="catalogForm" method="dialog" novalidate>
+    <header class="dialog-head">
+      <h2 id="catalogDialogTitle">Add department</h2>
+      <button type="button" class="icon-btn" data-close aria-label="Close">✕</button>
+    </header>
+    <div class="form-error" id="catalogFormError" hidden></div>
+    <label class="field">
+      <span id="catalogNameLabel">Name *</span>
+      <input name="name" required maxlength="80" autocomplete="off">
+      <small class="err" data-for="name"></small>
+    </label>
+    <label class="field">
+      <span>Description</span>
+      <textarea name="description" rows="3" maxlength="255"></textarea>
+      <small class="err" data-for="description"></small>
+    </label>
+    <footer class="dialog-foot">
+      <button type="button" class="btn ghost" data-close>Cancel</button>
+      <button type="submit" class="btn primary">Save</button>
+    </footer>
+  </form>
+</dialog>
+
+<!-- Confirm delete -->
+<dialog id="confirmDialog" class="dialog small">
+  <div class="confirm">
+    <h2 id="confirmTitle">Delete?</h2>
+    <p id="confirmText" class="muted"></p>
+    <footer class="dialog-foot">
+      <button type="button" class="btn ghost" data-close>Cancel</button>
+      <button type="button" class="btn danger" id="confirmOk">Delete</button>
+    </footer>
+  </div>
+</dialog>
+
+<div class="toasts" id="toasts" role="status" aria-live="polite"></div>
+
+<script src="js/app.js"></script>
+</body>
+</html>
